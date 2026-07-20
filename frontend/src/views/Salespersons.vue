@@ -133,7 +133,7 @@ const saveForm = async () => {
 const toggleStatus = async (row) => {
   try {
     await salespersonsApi.toggle(row.id)
-    ElMessage.success(row.is_edit ? '已禁用' : '已启用')
+    ElMessage.success(row.is_active ? '已禁用' : '已启用')
     await loadData()
   } catch (e) {
     ElMessage.error('操作失败')
