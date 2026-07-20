@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-container class="app-container">
     <el-header class="app-header">
       <div class="header-left">
@@ -21,6 +21,10 @@
         <el-menu-item index="/salespersons">
           <el-icon><User /></el-icon>
           <span>业务员管理</span>
+        </el-menu-item>
+        <el-menu-item index="/member">
+          <el-icon><UserFilled /></el-icon>
+          <span>会员业绩汇总</span>
         </el-menu-item>
       </el-menu>
       <div class="header-right">

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="sales-entry">
     <!-- 日期选择 -->
     <el-card class="date-card">
@@ -52,12 +52,10 @@
             />
           </el-form-item>
 
-          <el-form-item label="备注">
+          <el-form-item label="会员">
             <el-input
               v-model="form.note"
-              type="textarea"
-              :rows="2"
-              placeholder="客户名称、产品信息等"
+              placeholder="输入会员名字"
             />
           </el-form-item>
 
@@ -92,7 +90,7 @@
                 <span class="record-amount">¥{{ record.amount.toFixed(2) }}</span>
                 <span v-if="record.salesperson_name" class="record-person">{{ record.salesperson_name }}</span>
               </div>
-              <div v-if="record.note" class="record-note">{{ record.note }}</div>
+              <div v-if="record.note" class="record-note">会员：{{ record.note }}</div>
               <div class="record-time">{{ record.created_at }}</div>
             </div>
             <el-button

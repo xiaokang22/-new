@@ -48,6 +48,9 @@ export const reportsApi = {
   getYearly(year) {
     return api.get('/reports/yearly', { params: { year } })
   },
+  getMember(year, month, memberName) {
+    return api.get('/reports/member', { params: { year, month, member_name: memberName } })
+  },
   exportExcel(year, month) {
     const params = { year }
     if (month) params.month = month

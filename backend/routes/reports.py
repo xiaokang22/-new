@@ -14,7 +14,6 @@ async def get_daily_report(date: str):
     """获取日报数据"""
     db = await get_db()
     try:
-        # 获取当天汇总
         cursor = await db.execute("""
             SELECT 
                 COUNT(*) as total_count,
@@ -27,12 +26,10 @@ async def get_daily_report(date: str):
         """, (date,))
         summary = dict(await cursor.fetchone())
         
-        # 计算占比和笔均
         summary["store_ratio"] = summary["total_amount"] > 0 and summary["store_amount"] / summary["total_amount"] * 100 or 0
         summary["avg_amount"] = summary["total_count"] > 0 and summary["total_amount"] / summary["total_count"] or 0
         summary["date"] = date
         
-        # 获取明细
         cursor = await db.execute("""
             SELECT s.*, sp.name as salesperson_name 
             FROM sales s 
@@ -51,7 +48,6 @@ async def get_monthly_report(year: int, month: int):
     """获取月报数据"""
     db = await get_db()
     try:
-        # 获取月度汇总
         cursor = await db.execute("""
             SELECT 
                 COUNT(*) as total_count,
@@ -65,7 +61,6 @@ async def get_monthly_report(year: int, month: int):
         summary["year"] = year
         summary["month"] = month
         
-        # 获取每日数据
         cursor = await db.execute("""
             SELECT 
                 date,
@@ -79,7 +74,6 @@ async def get_monthly_report(year: int, month: int):
         """, (str(year), f"{month:02d}"))
         daily_data = [dict(row) for row in await cursor.fetchall()]
         
-        # 获取业务员数据
         cursor = await db.execute("""
             SELECT 
                 sp.name as salesperson_name,
@@ -104,13 +98,11 @@ async def get_monthly_report(year: int, month: int):
 @router.get("/quarterly")
 async def get_quarterly_report(year: int, quarter: int):
     """获取季报数据"""
-    # 计算季度起止月份
     start_month = (quarter - 1) * 3 + 1
     end_month = quarter * 3
     
     db = await get_db()
     try:
-        # 获取季度汇总
         cursor = await db.execute("""
             SELECT 
                 COUNT(*) as total_count,
@@ -125,7 +117,6 @@ async def get_quarterly_report(year: int, quarter: int):
         summary["year"] = year
         summary["quarter"] = quarter
         
-        # 获取每月数据
         cursor = await db.execute("""
             SELECT 
                 strftime('%m', date) as month,
@@ -140,24 +131,9 @@ async def get_quarterly_report(year: int, quarter: int):
         """, (str(year), start_month, end_month))
         monthly_data = [dict(row) for row in await cursor.fetchall()]
         
-        # 获取业务员数据
-        cursor = await db.execute("""
-            SELECT 
-                sp.name as salesperson_name,
-                SUM(s.amount) as total_amount,
-                COUNT(*) as count
-            FROM sales s
-            JOIN salespersons sp ON s.salesperson_id = sp.id
-            WHERE strftime('%Y', s.date) = ?
-            GROUP BY s.salesperson_id
-            ORDER BY total_amount DESC
-        """, (str(year),))
-        salesperson_data = [dict(row) for row in await cursor.fetchall()]
-        
         return {
             "summary": summary,
-            "monthly_data": monthly_data,
-            "salesperson_data": salesperson_data
+            "monthly_data": monthly_data
         }
     finally:
         await db.close()
@@ -167,7 +143,6 @@ async def get_yearly_report(year: int):
     """获取年报数据"""
     db = await get_db()
     try:
-        # 获取年度汇总
         cursor = await db.execute("""
             SELECT 
                 COUNT(*) as total_count,
@@ -180,7 +155,6 @@ async def get_yearly_report(year: int):
         summary = dict(await cursor.fetchone())
         summary["year"] = year
         
-        # 获取每月数据
         cursor = await db.execute("""
             SELECT 
                 strftime('%m', date) as month,
@@ -194,7 +168,6 @@ async def get_yearly_report(year: int):
         """, (str(year),))
         monthly_data = [dict(row) for row in await cursor.fetchall()]
         
-        # 获取业务员数据
         cursor = await db.execute("""
             SELECT 
                 sp.name as salesperson_name,
@@ -216,13 +189,44 @@ async def get_yearly_report(year: int):
     finally:
         await db.close()
 
+@router.get("/member")
+async def get_member_report(year: int, month: int, member_name: str):
+    """查询某会员某月的每一单及业绩汇总"""
+    db = await get_db()
+    try:
+        # 查询该会员该月所有订单
+        cursor = await db.execute("""
+            SELECT s.*, sp.name as salesperson_name
+            FROM sales s
+            LEFT JOIN salespersons sp ON s.salesperson_id = sp.id
+            WHERE strftime('%Y', s.date) = ? 
+              AND strftime('%m', s.date) = ?
+              AND s.note = ?
+            ORDER BY s.date, s.created_at
+        """, (str(year), f"{month:02d}", member_name))
+        records = [dict(row) for row in await cursor.fetchall()]
+        
+        # 汇总
+        total_amount = sum(r["amount"] for r in records)
+        total_count = len(records)
+        
+        return {
+            "member_name": member_name,
+            "year": year,
+            "month": month,
+            "total_amount": total_amount,
+            "total_count": total_count,
+            "records": records
+        }
+    finally:
+        await db.close()
+
 @router.get("/export/excel")
 async def export_excel_report(year: int, month: Optional[int] = None):
     """导出Excel报表"""
     db = await get_db()
     try:
         if month:
-            # 月报
             cursor = await db.execute("""
                 SELECT s.*, sp.name as salesperson_name 
                 FROM sales s 
@@ -232,7 +236,6 @@ async def export_excel_report(year: int, month: Optional[int] = None):
             """, (str(year), f"{month:02d}"))
             title = f"{year}年{month}月业绩报表"
         else:
-            # 年报
             cursor = await db.execute("""
                 SELECT s.*, sp.name as salesperson_name 
                 FROM sales s 
@@ -243,8 +246,6 @@ async def export_excel_report(year: int, month: Optional[int] = None):
             title = f"{year}年业绩报表"
         
         records = [dict(row) for row in await cursor.fetchall()]
-        
-        # 生成Excel
         excel_file = export_excel(records, title)
         
         return StreamingResponse(
@@ -254,4 +255,3 @@ async def export_excel_report(year: int, month: Optional[int] = None):
         )
     finally:
         await db.close()
-
