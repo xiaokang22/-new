@@ -1,0 +1,12 @@
+﻿services:
+  - type: web
+    name: loubang-report
+    runtime: docker
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_REPO
+        value: xiaokang22/-new
+      - key: PYTHON_VERSION
+        value: "3.12"
