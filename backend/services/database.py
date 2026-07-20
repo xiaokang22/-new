@@ -1,9 +1,14 @@
 ﻿# -*- coding: utf-8 -*-
 import aiosqlite
 import os
+import base64
+import httpx
 from datetime import datetime
 
 DATABASE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "sales.db")
+
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+GITHUB_REPO = os.getenv("GITHUB_REPO", "xiaokang22/-new")
 
 async def get_db():
     """获取数据库连接"""
@@ -13,11 +18,10 @@ async def get_db():
     return db
 
 async def init_db():
-    """初始化数据库表"""
+    """初始化数据库表，启动时自动检查并恢复数据"""
     os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
     db = await get_db()
     try:
-        # 创建业务员表
         await db.execute("""
             CREATE TABLE IF NOT EXISTS salespersons (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,7 +34,6 @@ async def init_db():
             )
         """)
         
-        # 创建销售记录表
         await db.execute("""
             CREATE TABLE IF NOT EXISTS sales (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +47,6 @@ async def init_db():
             )
         """)
         
-        # 创建备份记录表
         await db.execute("""
             CREATE TABLE IF NOT EXISTS backup_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,6 +58,41 @@ async def init_db():
         """)
         
         await db.commit()
-        print("数据库初始化完成")
+        
+        # 安全检查：如果本地数据库为空，自动从 GitHub 恢复
+        cursor = await db.execute("SELECT COUNT(*) as cnt FROM sales")
+        row = await cursor.fetchone()
+        if row["cnt"] == 0:
+            print("本地数据库为空，尝试从 GitHub 恢复...")
+            restored = await _restore_from_github()
+            if restored:
+                print("从 GitHub 恢复数据成功")
+            else:
+                print("GitHub 恢复跳过或失败，使用空数据库")
+        else:
+            print(f"数据库初始化完成，已有 {row['cnt']} 条销售记录")
     finally:
         await db.close()
+
+async def _restore_from_github():
+    """从 GitHub 恢复数据库"""
+    if not GITHUB_TOKEN:
+        return False
+    try:
+        async with httpx.AsyncClient() as client:
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/data/sales.db"
+            headers = {
+                "Authorization": f"token {GITHUB_TOKEN}",
+                "Accept": "application/vnd.github.v3+json"
+            }
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                content = base64.b64decode(data["content"])
+                with open(DATABASE_PATH, "wb") as f:
+                    f.write(content)
+                return True
+            return False
+    except Exception as e:
+        print(f"GitHub 恢复失败: {e}")
+        return False
