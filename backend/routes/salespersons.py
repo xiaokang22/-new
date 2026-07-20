@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 from fastapi import APIRouter, HTTPException
 from typing import List
 from models import SalespersonCreate, SalespersonUpdate, SalespersonResponse
@@ -75,9 +75,9 @@ async def update_salesperson(salesperson_id: int, salesperson: SalespersonUpdate
     finally:
         await db.close()
 
-@router.patch("/{salesperson_id}/toggle")
-async def toggle_salesperson(salesperson_id: int):
-    """启用/禁用业务员"""
+@router.delete("/{salesperson_id}")
+async def delete_salesperson(salesperson_id: int):
+    """删除业务员"""
     db = await get_db()
     try:
         cursor = await db.execute("SELECT * FROM salespersons WHERE id = ?", (salesperson_id,))
@@ -85,15 +85,14 @@ async def toggle_salesperson(salesperson_id: int):
         if not existing:
             raise HTTPException(status_code=404, detail="业务员不存在")
         
-        new_status = 0 if existing["is_active"] else 1
-        await db.execute(
-            "UPDATE salespersons SET is_active = ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
-            (new_status, salesperson_id)
-        )
-        await db.commit()
-        
-        cursor = await db.execute("SELECT * FROM salespersons WHERE id = ?", (salesperson_id,))
+        # 检查是否有关联的销售记录
+        cursor = await db.execute("SELECT COUNT(*) as cnt FROM sales WHERE salesperson_id = ?", (salesperson_id,))
         row = await cursor.fetchone()
-        return dict(row)
+        if row["cnt"] > 0:
+            raise HTTPException(status_code=400, detail="该业务员有关联的销售记录，无法删除。请先删除相关销售记录。")
+        
+        await db.execute("DELETE FROM salespersons WHERE id = ?", (salesperson_id,))
+        await db.commit()
+        return {"message": "删除成功"}
     finally:
         await db.close()

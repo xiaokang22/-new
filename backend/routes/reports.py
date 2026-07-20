@@ -140,9 +140,24 @@ async def get_quarterly_report(year: int, quarter: int):
         """, (str(year), start_month, end_month))
         monthly_data = [dict(row) for row in await cursor.fetchall()]
         
+        # 获取业务员数据
+        cursor = await db.execute("""
+            SELECT 
+                sp.name as salesperson_name,
+                SUM(s.amount) as total_amount,
+                COUNT(*) as count
+            FROM sales s
+            JOIN salespersons sp ON s.salesperson_id = sp.id
+            WHERE strftime('%Y', s.date) = ?
+            GROUP BY s.salesperson_id
+            ORDER BY total_amount DESC
+        """, (str(year),))
+        salesperson_data = [dict(row) for row in await cursor.fetchall()]
+        
         return {
             "summary": summary,
-            "monthly_data": monthly_data
+            "monthly_data": monthly_data,
+            "salesperson_data": salesperson_data
         }
     finally:
         await db.close()
@@ -179,9 +194,24 @@ async def get_yearly_report(year: int):
         """, (str(year),))
         monthly_data = [dict(row) for row in await cursor.fetchall()]
         
+        # 获取业务员数据
+        cursor = await db.execute("""
+            SELECT 
+                sp.name as salesperson_name,
+                SUM(s.amount) as total_amount,
+                COUNT(*) as count
+            FROM sales s
+            JOIN salespersons sp ON s.salesperson_id = sp.id
+            WHERE strftime('%Y', s.date) = ?
+            GROUP BY s.salesperson_id
+            ORDER BY total_amount DESC
+        """, (str(year),))
+        salesperson_data = [dict(row) for row in await cursor.fetchall()]
+        
         return {
             "summary": summary,
-            "monthly_data": monthly_data
+            "monthly_data": monthly_data,
+            "salesperson_data": salesperson_data
         }
     finally:
         await db.close()
@@ -224,3 +254,4 @@ async def export_excel_report(year: int, month: Optional[int] = None):
         )
     finally:
         await db.close()
+

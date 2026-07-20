@@ -1,4 +1,4 @@
-import axios from 'axios'
+﻿import axios from 'axios'
 
 const api = axios.create({
   baseURL: '/api',
@@ -29,8 +29,8 @@ export const salespersonsApi = {
   update(id, data) {
     return api.put(`/salespersons/${id}`, data)
   },
-  toggle(id) {
-    return api.patch(`/salespersons/${id}/toggle`)
+  delete(id) {
+    return api.delete(`/salespersons/${id}`)
   }
 }
 

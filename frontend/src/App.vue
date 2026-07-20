@@ -14,13 +14,13 @@
           <el-icon><Edit /></el-icon>
           <span>数据录入</span>
         </el-menu-item>
-        <el-menu-item index="/salespersons">
-          <el-icon><User /></el-icon>
-          <span>业务员管理</span>
-        </el-menu-item>
         <el-menu-item index="/reports">
           <el-icon><DataAnalysis /></el-icon>
           <span>报表</span>
+        </el-menu-item>
+        <el-menu-item index="/salespersons">
+          <el-icon><User /></el-icon>
+          <span>业务员管理</span>
         </el-menu-item>
       </el-menu>
       <div class="header-right">

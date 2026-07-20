@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="salespersons">
     <el-card>
       <template #header>
@@ -26,13 +26,7 @@
         <el-table-column label="操作" min-width="180">
           <template #default="{ row }">
             <el-button size="small" @click="openDialog(row)">编辑</el-button>
-            <el-button
-              :type="row.is_active ? 'warning' : 'success'"
-              size="small"
-              @click="toggleStatus(row)"
-            >
-              {{ row.is_active ? '禁用' : '启用' }}
-            </el-button>
+            <el-button type="danger" size="small" @click="deleteSalesperson(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -65,7 +59,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { salespersonsApi } from '../api'
 
 const salespersons = ref([])
@@ -130,13 +124,20 @@ const saveForm = async () => {
   }
 }
 
-const toggleStatus = async (row) => {
+const deleteSalesperson = async (row) => {
   try {
-    await salespersonsApi.toggle(row.id)
-    ElMessage.success(row.is_active ? '已禁用' : '已启用')
+    await ElMessageBox.confirm(`确定要删除业务员「${row.name}」吗？`, '确认删除', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await salespersonsApi.delete(row.id)
+    ElMessage.success('删除成功')
     await loadData()
   } catch (e) {
-    ElMessage.error('操作失败')
+    if (e !== 'cancel') {
+      ElMessage.error('删除失败：' + (e.response?.data?.detail || e.message))
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="reports">
     <el-card class="filter-card">
       <div class="filter-row">
@@ -31,7 +31,7 @@
 
         <div v-if="reportType === 'yearly'" class="year-picker">
           <el-date-picker
-            v-model="yearlyYear"
+            v-model="selectYear"
             type="year"
             placeholder="选择年份"
             format="YYYY年"
@@ -67,48 +67,40 @@
       </el-card>
     </div>
 
-    <!-- 双栏布局：左边明细，右边业务员业绩 -->
-    <div v-if="detailData.length > 0 || salespersonData.length > 0" class="detail-section">
-      <!-- 左栏：明细数据 -->
-      <el-card class="detail-card">
-        <template #header>
-          <span class="card-title">{{ detailTitle }}</span>
-        </template>
-        <el-table :data="detailData" stripe>
-          <el-table-column prop="date" :label="dateLabel" width="140" />
-          <el-table-column label="到店金额" width="120">
-            <template #default="{ row }">¥{{ row.store_amount.toFixed(2) }}</template>
-          </el-table-column>
-          <el-table-column label="推销金额" width="120">
-            <template #default="{ row }">¥{{ row.salesperson_amount.toFixed(2) }}</template>
-          </el-table-column>
-          <el-table-column label="合计">
-            <template #default="{ row }">
-              <span class="amount">¥{{ (row.daily_amount || row.monthly_amount).toFixed(2) }}</span>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-card>
+    <!-- 月报/年报：业务员业绩表 -->
+    <el-card v-if="(reportType === 'monthly' || reportType === 'yearly') && salespersonData.length > 0" class="detail-card" style="margin-bottom: 20px">
+      <template #header>
+        <span class="card-title">{{ reportType === 'monthly' ? '业务员月度业绩' : '业务员年度业绩' }}</span>
+      </template>
+      <el-table :data="salespersonData" stripe>
+        <el-table-column prop="salesperson_name" label="业务员" width="120" />
+        <el-table-column label="业绩">
+          <template #default="{ row }">
+            <span class="amount">¥{{ row.total_amount.toFixed(2) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="count" label="笔数" width="80" />
+      </el-table>
+    </el-card>
 
-      <!-- 右栏：业务员业绩 -->
-      <el-card class="detail-card">
-        <template #header>
-          <span class="card-title">业务员业绩</span>
-        </template>
-        <el-table :data="salespersonData" stripe>
-          <el-table-column prop="salesperson_name" label="业务员" width="120" />
-          <el-table-column label="业绩">
-            <template #default="{ row }">
-              <span class="amount">¥{{ row.total_amount.toFixed(2) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="count" label="笔数" width="80" />
-        </el-table>
-      </el-card>
-    </div>
+    <!-- 日报：业务员业绩 -->
+    <el-card v-if="reportType === 'daily' && salespersonData.length > 0" class="detail-card" style="margin-bottom: 20px">
+      <template #header>
+        <span class="card-title">业务员业绩</span>
+      </template>
+      <el-table :data="salespersonData" stripe>
+        <el-table-column prop="salesperson_name" label="业务员" width="120" />
+        <el-table-column label="业绩">
+          <template #default="{ row }">
+            <span class="amount">¥{{ row.total_amount.toFixed(2) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="count" label="笔数" width="80" />
+      </el-table>
+    </el-card>
 
-    <!-- 日报额外显示：销售明细列表 -->
-    <el-card v-if="reportType === 'daily' && dailyDetails.length > 0" class="detail-card" style="margin-top: 20px">
+    <!-- 日报：销售明细列表 -->
+    <el-card v-if="reportType === 'daily' && dailyDetails.length > 0" class="detail-card">
       <template #header>
         <span class="card-title">销售明细</span>
       </template>
@@ -124,10 +116,11 @@
           <template #default="{ row }">{{ row.salesperson_name || '-' }}</template>
         </el-table-column>
         <el-table-column label="金额" width="120">
-          <template #default="{ row }"><span class="amount">¥{{ row.amount.toFixed(2) }}</span></template>
+          <template #default="{ row }">
+            <span class="amount">¥{{ row.amount.toFixed(2) }}</span>
+          </template>
         </el-table-column>
-        <el-table-column prop="note" label="备注" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="时间" width="160" />
+        <el-table-column prop="note" label="备注" />
         <el-table-column label="操作" width="80">
           <template #default="{ row }">
             <el-button type="danger" size="small" circle @click="deleteRecord(row.id)">
@@ -141,31 +134,18 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { reportsApi, salesApi } from '../api'
 
 const reportType = ref('daily')
 const dailyDate = ref(new Date().toISOString().split('T')[0])
 const monthlyDate = ref(new Date().toISOString().slice(0, 7))
-const yearlyYear = ref(new Date().getFullYear().toString())
+const selectYear = ref(new Date().getFullYear().toString())
 
 const summary = ref(null)
-const detailData = ref([])
 const salespersonData = ref([])
 const dailyDetails = ref([])
-
-const detailTitle = computed(() => {
-  if (reportType.value === 'daily') return '销售明细'
-  if (reportType.value === 'monthly') return '每日业绩明细'
-  return '每月业绩明细'
-})
-
-const dateLabel = computed(() => {
-  if (reportType.value === 'daily') return '日期'
-  if (reportType.value === 'monthly') return '日期'
-  return '月份'
-})
 
 const onTypeChange = () => {
   loadReport()
@@ -174,7 +154,6 @@ const onTypeChange = () => {
 const loadReport = async () => {
   try {
     summary.value = null
-    detailData.value = []
     salespersonData.value = []
     dailyDetails.value = []
 
@@ -182,14 +161,6 @@ const loadReport = async () => {
       const res = await reportsApi.getDaily(dailyDate.value)
       summary.value = res.data.summary
       dailyDetails.value = res.data.details
-      // 日报没有分日明细，用单行汇总
-      detailData.value = [{
-        date: dailyDate.value,
-        store_amount: res.data.summary.store_amount,
-        salesperson_amount: res.data.summary.salesperson_amount,
-        daily_amount: res.data.summary.total_amount
-      }]
-      // 从明细中统计业务员
       const spMap = {}
       for (const d of res.data.details) {
         if (d.salesperson_name) {
@@ -205,14 +176,12 @@ const loadReport = async () => {
       const [year, month] = monthlyDate.value.split('-')
       const res = await reportsApi.getMonthly(parseInt(year), parseInt(month))
       summary.value = res.data.summary
-      detailData.value = res.data.daily_data
       salespersonData.value = res.data.salesperson_data
     } else if (reportType.value === 'yearly') {
-      const res = await reportsApi.getYearly(parseInt(yearlyYear.value))
+      const year = parseInt(selectYear.value)
+      const res = await reportsApi.getYearly(year)
       summary.value = res.data.summary
-      detailData.value = res.data.monthly_data
-      // 年报没有业务员数据，从月报接口无法获取，显示空
-      salespersonData.value = []
+      salespersonData.value = res.data.salesperson_data
     }
   } catch (e) {
     ElMessage.error('加载报表失败')
@@ -245,7 +214,7 @@ const exportExcel = async () => {
       year = parts[0]
       month = parseInt(parts[1])
     } else {
-      year = yearlyYear.value
+      year = selectYear.value
     }
     const res = await reportsApi.exportExcel(parseInt(year), month)
     const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
@@ -328,11 +297,5 @@ onMounted(() => {
 .amount {
   font-weight: bold;
   color: #303133;
-}
-
-.detail-section {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
 }
 </style>

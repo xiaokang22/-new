@@ -1,8 +1,9 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 from fastapi import APIRouter, HTTPException
 from typing import List, Optional
 from models import SaleCreate, SaleResponse
 from services.database import get_db
+import asyncio
 from services.backup import trigger_backup
 
 router = APIRouter()
@@ -77,7 +78,7 @@ async def create_sale(sale: SaleCreate):
         row = await cursor.fetchone()
         
         # 触发备份
-        await trigger_backup()
+        asyncio.create_task(trigger_backup())
         
         return dict(row)
     finally:
@@ -97,8 +98,9 @@ async def delete_sale(sale_id: int):
         await db.commit()
         
         # 触发备份
-        await trigger_backup()
+        asyncio.create_task(trigger_backup())
         
         return {"message": "删除成功"}
     finally:
         await db.close()
+
