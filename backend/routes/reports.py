@@ -2,6 +2,7 @@
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from typing import Optional
+from urllib.parse import quote
 from services.database import get_db
 from services.excel import export_excel
 import io
@@ -219,7 +220,7 @@ async def export_excel_report(year: int, month: Optional[int] = None):
         return StreamingResponse(
             io.BytesIO(excel_file),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f"attachment; filename={title}.xlsx"}
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(title)}.xlsx"}
         )
     finally:
         await db.close()
