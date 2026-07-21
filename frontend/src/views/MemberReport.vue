@@ -37,10 +37,11 @@
       <el-card v-if="result.records.length > 0" style="margin-top: 16px">
         <el-table :data="result.records" stripe>
           <el-table-column prop="date" label="日期" width="130" />
-          <el-table-column label="渠道" width="100">
+          <el-table-column label="类型" width="80">
             <template #default="{ row }">
-              <el-tag :type="channelType(row.channel)" size="small">
-                {{ channelLabel(row.channel) }}
+              <el-tag v-if="row.is_refund" type="danger" size="small">退款</el-tag>
+              <el-tag v-else :type="row.channel === 'store' ? 'success' : 'warning'" size="small">
+                {{ row.channel === 'store' ? '到店' : '推销' }}
               </el-tag>
             </template>
           </el-table-column>
@@ -49,8 +50,8 @@
           </el-table-column>
           <el-table-column label="金额" width="120">
             <template #default="{ row }">
-              <span class="amount" :class="{ 'refund-amount': row.channel === 'refund' }">
-                {{ row.channel === 'refund' ? '-' : '' }}¥{{ row.amount.toFixed(2) }}
+              <span class="amount" :class="{ 'refund-amount': row.is_refund }">
+                {{ row.is_refund ? '-' : '' }}¥{{ row.amount.toFixed(2) }}
               </span>
             </template>
           </el-table-column>
@@ -74,16 +75,6 @@ const selectMonth = ref(new Date().toISOString().slice(0, 7))
 const searchName = ref('')
 const result = ref(null)
 const loading = ref(false)
-
-const channelType = (channel) => {
-  const map = { store: 'success', salesperson: 'warning', refund: 'danger' }
-  return map[channel] || 'info'
-}
-
-const channelLabel = (channel) => {
-  const map = { store: '到店', salesperson: '推销', refund: '退款' }
-  return map[channel] || channel
-}
 
 const loadMembers = () => {
   if (searchName.value.trim()) {

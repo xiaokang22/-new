@@ -76,7 +76,8 @@ export const salesApi = {
         channel: sale.channel,
         salesperson_id: sale.salesperson_id || null,
         amount: sale.amount,
-        note: sale.note || null
+        note: sale.note || null,
+        is_refund: sale.is_refund || false
       })
       .select('*, salesperson:salespersons(name)')
       .single()
@@ -105,13 +106,16 @@ export const reportsApi = {
     if (error) throw error
 
     const details = records.map(r => ({ ...r, salesperson_name: r.salesperson?.name || null }))
-    const total_amount = details.filter(r => r.channel !== 'refund').reduce((s, r) => s + r.amount, 0) - details.filter(r => r.channel === 'refund').reduce((s, r) => s + r.amount, 0)
-    const total_count = details.filter(r => r.channel !== 'refund').length
-    const store_amount = details.filter(r => r.channel === 'store').reduce((s, r) => s + r.amount, 0)
-    const salesperson_amount = details.filter(r => r.channel === 'salesperson').reduce((s, r) => s + r.amount, 0)
-    const store_count = details.filter(r => r.channel === 'store').length
-    const salesperson_count = details.filter(r => r.channel === 'salesperson').length
-    const refund_amount = details.filter(r => r.channel === 'refund').reduce((s, r) => s + r.amount, 0)
+    const saleRecords = details.filter(r => !r.is_refund)
+    const refundRecords = details.filter(r => r.is_refund)
+    const refundAmount = refundRecords.reduce((s, r) => s + r.amount, 0)
+
+    const total_amount = saleRecords.reduce((s, r) => s + r.amount, 0) - refundAmount
+    const total_count = saleRecords.length
+    const store_amount = saleRecords.filter(r => r.channel === 'store').reduce((s, r) => s + r.amount, 0) - refundRecords.filter(r => r.channel === 'store').reduce((s, r) => s + r.amount, 0)
+    const salesperson_amount = saleRecords.filter(r => r.channel === 'salesperson').reduce((s, r) => s + r.amount, 0) - refundRecords.filter(r => r.channel === 'salesperson').reduce((s, r) => s + r.amount, 0)
+    const store_count = saleRecords.filter(r => r.channel === 'store').length
+    const salesperson_count = saleRecords.filter(r => r.channel === 'salesperson').length
 
     return {
       data: {
@@ -125,7 +129,7 @@ export const reportsApi = {
           salesperson_count,
           store_ratio: total_amount > 0 ? store_amount / total_amount * 100 : 0,
           avg_amount: total_count > 0 ? total_amount / total_count : 0,
-          refund_amount
+          refund_amount: refundAmount
         },
         details
       }
@@ -141,31 +145,32 @@ export const reportsApi = {
       .lt('date', `${year}-${monthStr}-32`)
     if (error) throw error
 
-    const nonRefund = records.filter(r => r.channel !== 'refund')
-    const refundAmount = records.filter(r => r.channel === 'refund').reduce((s, r) => s + r.amount, 0)
-    const total_amount = nonRefund.reduce((s, r) => s + r.amount, 0) - refundAmount
-    const total_count = nonRefund.length
-    const store_amount = records.filter(r => r.channel === 'store').reduce((s, r) => s + r.amount, 0)
-    const salesperson_amount = records.filter(r => r.channel === 'salesperson').reduce((s, r) => s + r.amount, 0)
+    const saleRecords = records.filter(r => !r.is_refund)
+    const refundRecords = records.filter(r => r.is_refund)
+    const refundAmount = refundRecords.reduce((s, r) => s + r.amount, 0)
+
+    const total_amount = saleRecords.reduce((s, r) => s + r.amount, 0) - refundAmount
+    const total_count = saleRecords.length
+    const store_amount = saleRecords.filter(r => r.channel === 'store').reduce((s, r) => s + r.amount, 0) - refundRecords.filter(r => r.channel === 'store').reduce((s, r) => s + r.amount, 0)
+    const salesperson_amount = saleRecords.filter(r => r.channel === 'salesperson').reduce((s, r) => s + r.amount, 0) - refundRecords.filter(r => r.channel === 'salesperson').reduce((s, r) => s + r.amount, 0)
 
     const dailyMap = {}
     for (const r of records) {
-      if (!dailyMap[r.date]) dailyMap[r.date] = { date: r.date, daily_amount: 0, store_amount: 0, salesperson_amount: 0, refund_amount: 0 }
-      if (r.channel === 'refund') {
-        dailyMap[r.date].refund_amount += r.amount
+      if (!dailyMap[r.date]) dailyMap[r.date] = { date: r.date, daily_amount: 0, store_amount: 0, salesperson_amount: 0 }
+      if (r.is_refund) {
+        dailyMap[r.date].daily_amount -= r.amount
+        if (r.channel === 'store') dailyMap[r.date].store_amount -= r.amount
+        else dailyMap[r.date].salesperson_amount -= r.amount
       } else {
         dailyMap[r.date].daily_amount += r.amount
         if (r.channel === 'store') dailyMap[r.date].store_amount += r.amount
         else dailyMap[r.date].salesperson_amount += r.amount
       }
     }
-    for (const d of Object.values(dailyMap)) {
-      d.daily_amount -= d.refund_amount
-    }
     const daily_data = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date))
 
     const spMap = {}
-    for (const r of records) {
+    for (const r of saleRecords) {
       if (r.channel === 'salesperson' && r.salesperson?.name) {
         const name = r.salesperson.name
         if (!spMap[name]) spMap[name] = { salesperson_name: name, total_amount: 0, count: 0 }
@@ -188,32 +193,33 @@ export const reportsApi = {
       .lt('date', `${year + 1}-01-01`)
     if (error) throw error
 
-    const nonRefund = records.filter(r => r.channel !== 'refund')
-    const refundAmount = records.filter(r => r.channel === 'refund').reduce((s, r) => s + r.amount, 0)
-    const total_amount = nonRefund.reduce((s, r) => s + r.amount, 0) - refundAmount
-    const total_count = nonRefund.length
-    const store_amount = records.filter(r => r.channel === 'store').reduce((s, r) => s + r.amount, 0)
-    const salesperson_amount = records.filter(r => r.channel === 'salesperson').reduce((s, r) => s + r.amount, 0)
+    const saleRecords = records.filter(r => !r.is_refund)
+    const refundRecords = records.filter(r => r.is_refund)
+    const refundAmount = refundRecords.reduce((s, r) => s + r.amount, 0)
+
+    const total_amount = saleRecords.reduce((s, r) => s + r.amount, 0) - refundAmount
+    const total_count = saleRecords.length
+    const store_amount = saleRecords.filter(r => r.channel === 'store').reduce((s, r) => s + r.amount, 0) - refundRecords.filter(r => r.channel === 'store').reduce((s, r) => s + r.amount, 0)
+    const salesperson_amount = saleRecords.filter(r => r.channel === 'salesperson').reduce((s, r) => s + r.amount, 0) - refundRecords.filter(r => r.channel === 'salesperson').reduce((s, r) => s + r.amount, 0)
 
     const monthMap = {}
     for (const r of records) {
       const m = r.date.substring(5, 7)
-      if (!monthMap[m]) monthMap[m] = { month: m, monthly_amount: 0, store_amount: 0, salesperson_amount: 0, refund_amount: 0 }
-      if (r.channel === 'refund') {
-        monthMap[m].refund_amount += r.amount
+      if (!monthMap[m]) monthMap[m] = { month: m, monthly_amount: 0, store_amount: 0, salesperson_amount: 0 }
+      if (r.is_refund) {
+        monthMap[m].monthly_amount -= r.amount
+        if (r.channel === 'store') monthMap[m].store_amount -= r.amount
+        else monthMap[m].salesperson_amount -= r.amount
       } else {
         monthMap[m].monthly_amount += r.amount
         if (r.channel === 'store') monthMap[m].store_amount += r.amount
         else monthMap[m].salesperson_amount += r.amount
       }
     }
-    for (const m of Object.values(monthMap)) {
-      m.monthly_amount -= m.refund_amount
-    }
     const monthly_data = Object.values(monthMap).sort((a, b) => a.month.localeCompare(b.month))
 
     const spMap = {}
-    for (const r of records) {
+    for (const r of saleRecords) {
       if (r.salesperson?.name) {
         const name = r.salesperson.name
         if (!spMap[name]) spMap[name] = { salesperson_name: name, total_amount: 0, count: 0 }
@@ -240,13 +246,17 @@ export const reportsApi = {
     if (error) throw error
 
     const details = records.map(r => ({ ...r, salesperson_name: r.salesperson?.name || null }))
+    const saleRecords = details.filter(r => !r.is_refund)
+    const refundRecords = details.filter(r => r.is_refund)
+    const refundAmount = refundRecords.reduce((s, r) => s + r.amount, 0)
+
     return {
       data: {
         member_name: memberName,
         year,
         month,
-        total_amount: details.filter(r => r.channel !== 'refund').reduce((s, r) => s + r.amount, 0) - details.filter(r => r.channel === 'refund').reduce((s, r) => s + r.amount, 0),
-        total_count: details.filter(r => r.channel !== 'refund').length,
+        total_amount: saleRecords.reduce((s, r) => s + r.amount, 0) - refundAmount,
+        total_count: saleRecords.length,
         records: details
       }
     }
@@ -275,9 +285,10 @@ export const reportsApi = {
     const title = month ? `${year}年${month}月业绩报表` : `${year}年业绩报表`
     const rows = records.map(r => ({
       '日期': r.date,
-      '渠道': r.channel === 'store' ? '到店购买' : r.channel === 'salesperson' ? '业务员推销' : '退款',
+      '渠道': r.channel === 'store' ? '到店购买' : '业务员推销',
+      '类型': r.is_refund ? '退款' : '销售',
       '业务员': r.salesperson_name || '-',
-      '金额': r.channel === 'refund' ? -r.amount : r.amount,
+      '金额': r.is_refund ? -r.amount : r.amount,
       '备注': r.note || '',
       '创建时间': r.created_at
     }))
