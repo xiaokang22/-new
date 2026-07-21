@@ -2,7 +2,7 @@
   <el-container class="app-container">
     <el-header class="app-header">
       <div class="header-left">
-        <h1 class="logo">🏠 楼邦建材业绩报表</h1>
+        <h1 class="logo">🏠 楼邦建材业绩报表 </h1>
       </div>
       <el-menu
         :default-active="activeMenu"
