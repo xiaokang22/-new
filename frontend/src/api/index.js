@@ -1,71 +1,271 @@
-﻿import axios from 'axios'
-
-const api = axios.create({
-  baseURL: '/api',
-  timeout: 10000
-})
-
-// 销售记录 API
-export const salesApi = {
-  getList(date) {
-    return api.get('/sales', { params: { date } })
-  },
-  create(data) {
-    return api.post('/sales', data)
-  },
-  delete(id) {
-    return api.delete(`/sales/${id}`)
-  }
-}
+﻿import supabase from '../supabase'
+import * as XLSX from 'xlsx'
 
 // 业务员 API
 export const salespersonsApi = {
-  getList(activeOnly = false) {
-    return api.get('/salespersons', { params: { active_only: activeOnly } })
+  async getList(activeOnly = false) {
+    let query = supabase.from('salespersons').select('*').order('name')
+    if (activeOnly) {
+      query = query.eq('is_active', true)
+    }
+    const { data, error } = await query
+    if (error) throw error
+    return { data }
   },
-  create(data) {
-    return api.post('/salespersons', data)
+
+  async create(salesperson) {
+    const { data, error } = await supabase
+      .from('salespersons')
+      .insert({ name: salesperson.name, phone: salesperson.phone || null, position: salesperson.position || null })
+      .select()
+      .single()
+    if (error) throw error
+    return { data }
   },
-  update(id, data) {
-    return api.put(`/salespersons/${id}`, data)
+
+  async update(id, salesperson) {
+    const updateData = {}
+    if (salesperson.name !== undefined) updateData.name = salesperson.name
+    if (salesperson.phone !== undefined) updateData.phone = salesperson.phone || null
+    if (salesperson.position !== undefined) updateData.position = salesperson.position || null
+    updateData.updated_at = new Date().toISOString()
+    const { data, error } = await supabase
+      .from('salespersons')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+    return { data }
   },
-  delete(id) {
-    return api.delete(`/salespersons/${id}`)
+
+  async delete(id) {
+    const { error } = await supabase
+      .from('salespersons')
+      .delete()
+      .eq('id', id)
+    if (error) throw error
+    return { message: '删除成功' }
+  }
+}
+
+// 销售记录 API
+export const salesApi = {
+  async getList(date) {
+    let query = supabase
+      .from('sales')
+      .select('*, salesperson:salespersons(name)')
+      .order('created_at', { ascending: false })
+    if (date) {
+      query = query.eq('date', date)
+    }
+    const { data, error } = await query
+    if (error) throw error
+    const result = data.map(r => ({
+      ...r,
+      salesperson_name: r.salesperson?.name || null
+    }))
+    return { data: result }
+  },
+
+  async create(sale) {
+    const { data, error } = await supabase
+      .from('sales')
+      .insert({
+        date: sale.date,
+        channel: sale.channel,
+        salesperson_id: sale.salesperson_id || null,
+        amount: sale.amount,
+        note: sale.note || null
+      })
+      .select('*, salesperson:salespersons(name)')
+      .single()
+    if (error) throw error
+    return { data: { ...data, salesperson_name: data.salesperson?.name || null } }
+  },
+
+  async delete(id) {
+    const { error } = await supabase
+      .from('sales')
+      .delete()
+      .eq('id', id)
+    if (error) throw error
+    return { message: '删除成功' }
   }
 }
 
 // 报表 API
 export const reportsApi = {
-  getDaily(date) {
-    return api.get('/reports/daily', { params: { date } })
+  async getDaily(date) {
+    const { data: records, error } = await supabase
+      .from('sales')
+      .select('*, salesperson:salespersons(name)')
+      .eq('date', date)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+
+    const details = records.map(r => ({ ...r, salesperson_name: r.salesperson?.name || null }))
+    const total_amount = details.reduce((s, r) => s + r.amount, 0)
+    const total_count = details.length
+    const store_amount = details.filter(r => r.channel === 'store').reduce((s, r) => s + r.amount, 0)
+    const salesperson_amount = details.filter(r => r.channel === 'salesperson').reduce((s, r) => s + r.amount, 0)
+    const store_count = details.filter(r => r.channel === 'store').length
+    const salesperson_count = details.filter(r => r.channel === 'salesperson').length
+
+    return {
+      data: {
+        summary: {
+          date,
+          total_amount,
+          store_amount,
+          salesperson_amount,
+          total_count,
+          store_count,
+          salesperson_count,
+          store_ratio: total_amount > 0 ? store_amount / total_amount * 100 : 0,
+          avg_amount: total_count > 0 ? total_amount / total_count : 0
+        },
+        details
+      }
+    }
   },
-  getMonthly(year, month) {
-    return api.get('/reports/monthly', { params: { year, month } })
+
+  async getMonthly(year, month) {
+    const monthStr = String(month).padStart(2, '0')
+    const { data: records, error } = await supabase
+      .from('sales')
+      .select('*, salesperson:salespersons(name)')
+      .gte('date', `${year}-${monthStr}-01`)
+      .lt('date', `${year}-${monthStr}-32`)
+    if (error) throw error
+
+    const total_amount = records.reduce((s, r) => s + r.amount, 0)
+    const total_count = records.length
+    const store_amount = records.filter(r => r.channel === 'store').reduce((s, r) => s + r.amount, 0)
+    const salesperson_amount = records.filter(r => r.channel === 'salesperson').reduce((s, r) => s + r.amount, 0)
+
+    const dailyMap = {}
+    for (const r of records) {
+      if (!dailyMap[r.date]) dailyMap[r.date] = { date: r.date, daily_amount: 0, store_amount: 0, salesperson_amount: 0 }
+      dailyMap[r.date].daily_amount += r.amount
+      if (r.channel === 'store') dailyMap[r.date].store_amount += r.amount
+      else dailyMap[r.date].salesperson_amount += r.amount
+    }
+    const daily_data = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date))
+
+    const spMap = {}
+    for (const r of records) {
+      if (r.channel === 'salesperson' && r.salesperson?.name) {
+        const name = r.salesperson.name
+        if (!spMap[name]) spMap[name] = { salesperson_name: name, total_amount: 0, count: 0 }
+        spMap[name].total_amount += r.amount
+        spMap[name].count++
+      }
+    }
+    const salesperson_data = Object.values(spMap).sort((a, b) => b.total_amount - a.total_amount)
+
+    return {
+      data: { summary: { year, month, total_amount, store_amount, salesperson_amount, total_count }, daily_data, salesperson_data }
+    }
   },
-  getQuarterly(year, quarter) {
-    return api.get('/reports/quarterly', { params: { year, quarter } })
+
+  async getYearly(year) {
+    const { data: records, error } = await supabase
+      .from('sales')
+      .select('*, salesperson:salespersons(name)')
+      .gte('date', `${year}-01-01`)
+      .lt('date', `${year + 1}-01-01`)
+    if (error) throw error
+
+    const total_amount = records.reduce((s, r) => s + r.amount, 0)
+    const total_count = records.length
+    const store_amount = records.filter(r => r.channel === 'store').reduce((s, r) => s + r.amount, 0)
+    const salesperson_amount = records.filter(r => r.channel === 'salesperson').reduce((s, r) => s + r.amount, 0)
+
+    const monthMap = {}
+    for (const r of records) {
+      const m = r.date.substring(5, 7)
+      if (!monthMap[m]) monthMap[m] = { month: m, monthly_amount: 0, store_amount: 0, salesperson_amount: 0 }
+      monthMap[m].monthly_amount += r.amount
+      if (r.channel === 'store') monthMap[m].store_amount += r.amount
+      else monthMap[m].salesperson_amount += r.amount
+    }
+    const monthly_data = Object.values(monthMap).sort((a, b) => a.month.localeCompare(b.month))
+
+    const spMap = {}
+    for (const r of records) {
+      if (r.salesperson?.name) {
+        const name = r.salesperson.name
+        if (!spMap[name]) spMap[name] = { salesperson_name: name, total_amount: 0, count: 0 }
+        spMap[name].total_amount += r.amount
+        spMap[name].count++
+      }
+    }
+    const salesperson_data = Object.values(spMap).sort((a, b) => b.total_amount - a.total_amount)
+
+    return {
+      data: { summary: { year, total_amount, store_amount, salesperson_amount, total_count }, monthly_data, salesperson_data }
+    }
   },
-  getYearly(year) {
-    return api.get('/reports/yearly', { params: { year } })
+
+  async getMember(year, month, memberName) {
+    const monthStr = String(month).padStart(2, '0')
+    const { data: records, error } = await supabase
+      .from('sales')
+      .select('*, salesperson:salespersons(name)')
+      .eq('note', memberName)
+      .gte('date', `${year}-${monthStr}-01`)
+      .lt('date', `${year}-${monthStr}-32`)
+      .order('date')
+    if (error) throw error
+
+    const details = records.map(r => ({ ...r, salesperson_name: r.salesperson?.name || null }))
+    return {
+      data: {
+        member_name: memberName,
+        year,
+        month,
+        total_amount: details.reduce((s, r) => s + r.amount, 0),
+        total_count: details.length,
+        records: details
+      }
+    }
   },
-  getMember(year, month, memberName) {
-    return api.get('/reports/member', { params: { year, month, member_name: memberName } })
-  },
-  exportExcel(year, month) {
-    const params = { year }
-    if (month) params.month = month
-    return api.get('/reports/export/excel', { params, responseType: 'blob' })
+
+  async exportExcel(year, month) {
+    let records
+    const monthStr = month ? String(month).padStart(2, '0') : null
+    let query = supabase
+      .from('sales')
+      .select('*, salesperson:salespersons(name)')
+      .gte('date', `${year}-01-01`)
+      .lt('date', `${year + 1}-01-01`)
+      .order('date')
+    if (month) {
+      query = supabase
+        .from('sales')
+        .select('*, salesperson:salespersons(name)')
+        .gte('date', `${year}-${monthStr}-01`)
+        .lt('date', `${year}-${monthStr}-32`)
+        .order('date')
+    }
+    const { data, error } = await query
+    if (error) throw error
+    records = data.map(r => ({ ...r, salesperson_name: r.salesperson?.name || null }))
+
+    const title = month ? `${year}年${month}月业绩报表` : `${year}年业绩报表`
+    const rows = records.map(r => ({
+      '日期': r.date,
+      '渠道': r.channel === 'store' ? '到店购买' : '业务员推销',
+      '业务员': r.salesperson_name || '-',
+      '金额': r.amount,
+      '备注': r.note || '',
+      '创建时间': r.created_at
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '业绩报表')
+    XLSX.writeFile(wb, `${title}.xlsx`)
   }
 }
-
-// 备份 API
-export const backupApi = {
-  trigger() {
-    return api.post('/backup/trigger')
-  },
-  getStatus() {
-    return api.get('/backup/status')
-  }
-}
-
-export default api

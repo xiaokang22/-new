@@ -202,7 +202,7 @@ const submitForm = async () => {
     form.salesperson_id = null
     await loadRecords()
   } catch (e) {
-    ElMessage.error('添加失败：' + (e.response?.data?.detail || e.message))
+    ElMessage.error('添加失败：' + (e.message || '未知错误'))
   } finally {
     submitting.value = false
   }

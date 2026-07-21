@@ -118,7 +118,7 @@ const saveForm = async () => {
     dialogVisible.value = false
     await loadData()
   } catch (e) {
-    ElMessage.error('操作失败：' + (e.response?.data?.detail || e.message))
+    ElMessage.error('操作失败：' + (e.message || '未知错误'))
   } finally {
     saving.value = false
   }
@@ -136,7 +136,7 @@ const deleteSalesperson = async (row) => {
     await loadData()
   } catch (e) {
     if (e !== 'cancel') {
-      ElMessage.error('删除失败：' + (e.response?.data?.detail || e.message))
+      ElMessage.error('删除失败：' + (e.message || '未知错误'))
     }
   }
 }

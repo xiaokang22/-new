@@ -216,14 +216,7 @@ const exportExcel = async () => {
     } else {
       year = selectYear.value
     }
-    const res = await reportsApi.exportExcel(parseInt(year), month)
-    const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `业绩报表_${year}${month ? month + '月' : '全年'}.xlsx`
-    link.click()
-    window.URL.revokeObjectURL(url)
+    await reportsApi.exportExcel(parseInt(year), month)
     ElMessage.success('导出成功')
   } catch (e) {
     ElMessage.error('导出失败')
