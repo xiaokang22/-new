@@ -1,0 +1,11 @@
+﻿      for (const d of res.data.details) {
+          if (d.salesperson_name) {
+            if (!spMap[d.salesperson_name]) spMap[d.salesperson_name] = { total_amount: 0, count: 0 }
+            if (d.is_refund) {
+              spMap[d.salesperson_name].total_amount -= d.amount
+            } else {
+              spMap[d.salesperson_name].total_amount += d.amount
+              spMap[d.salesperson_name].count++
+            }
+          }
+        }

@@ -170,12 +170,16 @@ export const reportsApi = {
     const daily_data = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date))
 
     const spMap = {}
-    for (const r of saleRecords) {
+    for (const r of records) {
       if (r.channel === 'salesperson' && r.salesperson?.name) {
         const name = r.salesperson.name
         if (!spMap[name]) spMap[name] = { salesperson_name: name, total_amount: 0, count: 0 }
-        spMap[name].total_amount += r.amount
-        spMap[name].count++
+        if (r.is_refund) {
+          spMap[name].total_amount -= r.amount
+        } else {
+          spMap[name].total_amount += r.amount
+          spMap[name].count++
+        }
       }
     }
     const salesperson_data = Object.values(spMap).sort((a, b) => b.total_amount - a.total_amount)
@@ -219,12 +223,16 @@ export const reportsApi = {
     const monthly_data = Object.values(monthMap).sort((a, b) => a.month.localeCompare(b.month))
 
     const spMap = {}
-    for (const r of saleRecords) {
+    for (const r of records) {
       if (r.salesperson?.name) {
         const name = r.salesperson.name
         if (!spMap[name]) spMap[name] = { salesperson_name: name, total_amount: 0, count: 0 }
-        spMap[name].total_amount += r.amount
-        spMap[name].count++
+        if (r.is_refund) {
+          spMap[name].total_amount -= r.amount
+        } else {
+          spMap[name].total_amount += r.amount
+          spMap[name].count++
+        }
       }
     }
     const salesperson_data = Object.values(spMap).sort((a, b) => b.total_amount - a.total_amount)
