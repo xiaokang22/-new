@@ -286,6 +286,28 @@ export const reportsApi = {
     }
   },
 
+
+    async getMemberSummary(year, month) {
+      const monthStr = String(month).padStart(2, '0')
+      const { data: records, error } = await supabase
+        .from('sales')
+        .select('amount, note, is_refund')
+        .gte('date', `${year}-${monthStr}-01`)
+        .lt('date', `${year}-${monthStr}-32`)
+      if (error) throw error
+
+      const memberMap = {}
+      for (const r of records) {
+        if (!r.note || !r.note.trim()) continue
+        const name = r.note.trim()
+        if (!memberMap[name]) memberMap[name] = { member_name: name, total_amount: 0, total_count: 0, has_refund: false }
+        memberMap[name].total_amount += r.is_refund ? -r.amount : r.amount
+        memberMap[name].total_count++
+        if (r.is_refund) memberMap[name].has_refund = true
+      }
+      const data = Object.values(memberMap).sort((a, b) => b.total_amount - a.total_amount)
+      return { data }
+    },
   async exportExcel(year, month) {
     let query = supabase
       .from('sales')
