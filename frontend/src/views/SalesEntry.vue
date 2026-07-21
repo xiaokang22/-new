@@ -54,7 +54,7 @@
           <el-form-item label="金额">
             <el-input-number
               v-model="form.amount"
-              :min="0.01"
+              :min="0"
               :precision="2"
               :step="10"
               style="width: 100%"
