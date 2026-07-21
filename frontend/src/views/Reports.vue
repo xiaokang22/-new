@@ -168,17 +168,7 @@ const loadReport = async () => {
       const res = await reportsApi.getDaily(dailyDate.value)
       summary.value = res.data.summary
       dailyDetails.value = res.data.details
-      const spMap = {}
-      for (const d of res.data.details) {
-        if (d.salesperson_name) {
-          if (!spMap[d.salesperson_name]) spMap[d.salesperson_name] = { total_amount: 0, count: 0 }
-          spMap[d.salesperson_name].total_amount += d.amount
-          spMap[d.salesperson_name].count++
-        }
-      }
-      salespersonData.value = Object.entries(spMap).map(([name, v]) => ({
-        salesperson_name: name, ...v
-      }))
+      salespersonData.value = res.data.salesperson_data
     } else if (reportType.value === 'monthly') {
       const [year, month] = monthlyDate.value.split('-')
       const res = await reportsApi.getMonthly(parseInt(year), parseInt(month))

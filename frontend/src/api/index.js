@@ -117,6 +117,21 @@ export const reportsApi = {
     const store_count = saleRecords.filter(r => r.channel === 'store').length
     const salesperson_count = saleRecords.filter(r => r.channel === 'salesperson').length
 
+    const spMap = {}
+    for (const r of records) {
+      if (r.channel === 'salesperson' && r.salesperson?.name) {
+        const name = r.salesperson.name
+        if (!spMap[name]) spMap[name] = { salesperson_name: name, total_amount: 0, count: 0 }
+        if (r.is_refund) {
+          spMap[name].total_amount -= r.amount
+        } else {
+          spMap[name].total_amount += r.amount
+          spMap[name].count++
+        }
+      }
+    }
+    const salesperson_data = Object.values(spMap).sort((a, b) => b.total_amount - a.total_amount)
+
     return {
       data: {
         summary: {
@@ -131,7 +146,8 @@ export const reportsApi = {
           avg_amount: total_count > 0 ? total_amount / total_count : 0,
           refund_amount: refundAmount
         },
-        details
+        details,
+        salesperson_data
       }
     }
   },
