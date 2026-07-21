@@ -306,6 +306,23 @@ export const reportsApi = {
     if (error) throw error
     const records = data.map(r => ({ ...r, salesperson_name: r.salesperson?.name || null }))
 
+    const saleRecords = records.filter(r => !r.is_refund)
+    const refundRecords = records.filter(r => r.is_refund)
+    const refundAmount = refundRecords.reduce((s, r) => s + r.amount, 0)
+
+    const storeAmount = saleRecords.filter(r => r.channel === 'store').reduce((s, r) => s + r.amount, 0)
+      - refundRecords.filter(r => r.channel === 'store').reduce((s, r) => s + r.amount, 0)
+
+    const spMap = {}
+    for (const r of records) {
+      if (r.channel === 'salesperson' && r.salesperson_name) {
+        const name = r.salesperson_name
+        if (!spMap[name]) spMap[name] = 0
+        spMap[name] += r.is_refund ? -r.amount : r.amount
+      }
+    }
+    const salespersonList = Object.entries(spMap).sort((a, b) => b[1] - a[1])
+
     const title = month ? `${year}年${month}月业绩报表` : `${year}年业绩报表`
     const rows = records.map(r => ({
       '日期': r.date,
@@ -316,6 +333,20 @@ export const reportsApi = {
       '备注': r.note || '',
       '创建时间': r.created_at
     }))
+
+    if (rows.length > 0) {
+      rows.push({})
+      const summaryRow = { '日期': '汇总' }
+      salespersonList.forEach(([name, amount], i) => {
+        summaryRow[String.fromCharCode(66 + i * 2)] = name
+        summaryRow[String.fromCharCode(67 + i * 2)] = amount
+      })
+      const storeCol = String.fromCharCode(66 + salespersonList.length * 2)
+      const storeAmtCol = String.fromCharCode(67 + salespersonList.length * 2)
+      summaryRow[storeCol] = '到店购买'
+      summaryRow[storeAmtCol] = storeAmount
+      rows.push(summaryRow)
+    }
 
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
