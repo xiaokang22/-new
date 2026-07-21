@@ -28,6 +28,7 @@
             <el-radio-group v-model="form.channel" @change="onChannelChange">
               <el-radio-button value="store">到店购买</el-radio-button>
               <el-radio-button value="salesperson">业务员推销</el-radio-button>
+              <el-radio-button value="refund">退货</el-radio-button>
             </el-radio-group>
           </el-form-item>
 
@@ -42,6 +43,10 @@
             </el-select>
           </el-form-item>
 
+          <el-form-item v-if="form.channel === 'refund'" label="退款原因">
+            <el-input v-model="form.note" placeholder="输入退款原因（如会员名字）" />
+          </el-form-item>
+
           <el-form-item label="金额">
             <el-input-number
               v-model="form.amount"
@@ -52,7 +57,7 @@
             />
           </el-form-item>
 
-          <el-form-item label="会员">
+          <el-form-item v-if="form.channel !== 'refund'" label="会员">
             <el-input
               v-model="form.note"
               placeholder="输入会员名字"
@@ -61,7 +66,7 @@
 
           <el-form-item>
             <el-button type="primary" @click="submitForm" :loading="submitting" style="width: 100%">
-              添加记录
+              {{ form.channel === 'refund' ? '添加退款' : '添加记录' }}
             </el-button>
           </el-form-item>
         </el-form>
@@ -84,13 +89,15 @@
           <div v-for="record in records" :key="record.id" class="record-item">
             <div class="record-info">
               <div class="record-main">
-                <el-tag :type="record.channel === 'store' ? 'success' : 'warning'" size="small">
-                  {{ record.channel === 'store' ? '到店' : '推销' }}
+                <el-tag :type="channelType(record.channel)" size="small">
+                  {{ channelLabel(record.channel) }}
                 </el-tag>
-                <span class="record-amount">¥{{ record.amount.toFixed(2) }}</span>
+                <span class="record-amount" :class="{ 'refund-amount': record.channel === 'refund' }">
+                  {{ record.channel === 'refund' ? '-' : '' }}¥{{ record.amount.toFixed(2) }}
+                </span>
                 <span v-if="record.salesperson_name" class="record-person">{{ record.salesperson_name }}</span>
               </div>
-              <div v-if="record.note" class="record-note">会员：{{ record.note }}</div>
+              <div v-if="record.note" class="record-note">{{ record.channel === 'refund' ? '原因：' : '会员：' }}{{ record.note }}</div>
               <div class="record-time">{{ record.created_at }}</div>
             </div>
             <el-button
@@ -121,8 +128,8 @@
               <span class="summary-value salesperson">¥{{ summary.salesperson.toFixed(2) }}</span>
             </div>
             <div class="summary-item">
-              <span class="summary-label">笔数</span>
-              <span class="summary-value">{{ records.length }}</span>
+              <span class="summary-label">退款</span>
+              <span class="summary-value refund">¥{{ summary.refund.toFixed(2) }}</span>
             </div>
           </div>
         </div>
@@ -148,15 +155,27 @@ const form = reactive({
   note: ''
 })
 
+const channelType = (channel) => {
+  const map = { store: 'success', salesperson: 'warning', refund: 'danger' }
+  return map[channel] || 'info'
+}
+
+const channelLabel = (channel) => {
+  const map = { store: '到店', salesperson: '推销', refund: '退款' }
+  return map[channel] || channel
+}
+
 const summary = computed(() => {
-  const total = records.value.reduce((sum, r) => sum + r.amount, 0)
   const store = records.value.filter(r => r.channel === 'store').reduce((sum, r) => sum + r.amount, 0)
   const salesperson = records.value.filter(r => r.channel === 'salesperson').reduce((sum, r) => sum + r.amount, 0)
-  return { total, store, salesperson }
+  const refund = records.value.filter(r => r.channel === 'refund').reduce((sum, r) => sum + r.amount, 0)
+  const total = store + salesperson - refund
+  return { total, store, salesperson, refund }
 })
 
 const onChannelChange = () => {
   form.salesperson_id = null
+  form.note = ''
 }
 
 const loadSalespersons = async () => {
@@ -196,7 +215,7 @@ const submitForm = async () => {
       amount: form.amount,
       note: form.note
     })
-    ElMessage.success('添加成功')
+    ElMessage.success(form.channel === 'refund' ? '退款添加成功' : '添加成功')
     form.amount = 0
     form.note = ''
     form.salesperson_id = null
@@ -311,6 +330,10 @@ onMounted(() => {
   color: #303133;
 }
 
+.record-amount.refund-amount {
+  color: #f56c6c;
+}
+
 .record-person {
   color: #909399;
   font-size: 13px;
@@ -361,5 +384,9 @@ onMounted(() => {
 
 .summary-value.salesperson {
   color: #e6a23c;
+}
+
+.summary-value.refund {
+  color: #f56c6c;
 }
 </style>

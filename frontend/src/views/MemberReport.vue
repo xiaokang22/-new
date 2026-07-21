@@ -39,8 +39,8 @@
           <el-table-column prop="date" label="日期" width="130" />
           <el-table-column label="渠道" width="100">
             <template #default="{ row }">
-              <el-tag :type="row.channel === 'store' ? 'success' : 'warning'" size="small">
-                {{ row.channel === 'store' ? '到店' : '推销' }}
+              <el-tag :type="channelType(row.channel)" size="small">
+                {{ channelLabel(row.channel) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -49,7 +49,9 @@
           </el-table-column>
           <el-table-column label="金额" width="120">
             <template #default="{ row }">
-              <span class="amount">¥{{ row.amount.toFixed(2) }}</span>
+              <span class="amount" :class="{ 'refund-amount': row.channel === 'refund' }">
+                {{ row.channel === 'refund' ? '-' : '' }}¥{{ row.amount.toFixed(2) }}
+              </span>
             </template>
           </el-table-column>
           <el-table-column prop="created_at" label="创建时间" />
@@ -72,6 +74,16 @@ const selectMonth = ref(new Date().toISOString().slice(0, 7))
 const searchName = ref('')
 const result = ref(null)
 const loading = ref(false)
+
+const channelType = (channel) => {
+  const map = { store: 'success', salesperson: 'warning', refund: 'danger' }
+  return map[channel] || 'info'
+}
+
+const channelLabel = (channel) => {
+  const map = { store: '到店', salesperson: '推销', refund: '退款' }
+  return map[channel] || channel
+}
 
 const loadMembers = () => {
   if (searchName.value.trim()) {
@@ -137,5 +149,9 @@ onMounted(() => {})
 .amount {
   font-weight: bold;
   color: #303133;
+}
+
+.refund-amount {
+  color: #f56c6c !important;
 }
 </style>

@@ -61,6 +61,10 @@
         <div class="card-value">¥{{ summary.salesperson_amount.toFixed(2) }}</div>
         <div class="card-label">业务员推销</div>
       </el-card>
+      <el-card class="summary-card refund" v-if="summary.refund_amount > 0">
+        <div class="card-value">¥{{ summary.refund_amount.toFixed(2) }}</div>
+        <div class="card-label">退款</div>
+      </el-card>
       <el-card class="summary-card">
         <div class="card-value">{{ summary.total_count }}</div>
         <div class="card-label">总笔数</div>
@@ -107,8 +111,8 @@
       <el-table :data="dailyDetails" stripe>
         <el-table-column label="渠道" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.channel === 'store' ? 'success' : 'warning'" size="small">
-              {{ row.channel === 'store' ? '到店' : '推销' }}
+            <el-tag :type="channelType(row.channel)" size="small">
+              {{ channelLabel(row.channel) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -117,7 +121,9 @@
         </el-table-column>
         <el-table-column label="金额" width="120">
           <template #default="{ row }">
-            <span class="amount">¥{{ row.amount.toFixed(2) }}</span>
+            <span class="amount" :class="{ 'refund-amount': row.channel === 'refund' }">
+              {{ row.channel === 'refund' ? '-' : '' }}¥{{ row.amount.toFixed(2) }}
+            </span>
           </template>
         </el-table-column>
         <el-table-column prop="note" label="备注" />
@@ -146,6 +152,16 @@ const selectYear = ref(new Date().getFullYear().toString())
 const summary = ref(null)
 const salespersonData = ref([])
 const dailyDetails = ref([])
+
+const channelType = (channel) => {
+  const map = { store: 'success', salesperson: 'warning', refund: 'danger' }
+  return map[channel] || 'info'
+}
+
+const channelLabel = (channel) => {
+  const map = { store: '到店', salesperson: '推销', refund: '退款' }
+  return map[channel] || channel
+}
 
 const onTypeChange = () => {
   loadReport()
@@ -282,6 +298,10 @@ onMounted(() => {
   color: #e6a23c;
 }
 
+.summary-card.refund .card-value {
+  color: #f56c6c;
+}
+
 .card-title {
   font-weight: bold;
   font-size: 16px;
@@ -290,5 +310,9 @@ onMounted(() => {
 .amount {
   font-weight: bold;
   color: #303133;
+}
+
+.refund-amount {
+  color: #f56c6c !important;
 }
 </style>
