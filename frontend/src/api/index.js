@@ -354,3 +354,4 @@ export const reportsApi = {
     XLSX.writeFile(wb, `${title}.xlsx`)
   }
 }
+
