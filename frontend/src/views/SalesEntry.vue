@@ -64,7 +64,7 @@
           <el-form-item label="会员">
             <el-input
               v-model="form.note"
-              :placeholder="form.is_refund ? '输入退款原因（可选）' : '输入会员名字'"
+              :placeholder="'输入会员名字'"
             />
           </el-form-item>
 
